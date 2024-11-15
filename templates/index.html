@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeopardy Buzzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a237e, #0d47a1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            animation: fadeIn 1s ease-out;
+        }
+
+        #join-area {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            animation: slideUp 0.5s ease-out;
+        }
+
+        #player-name {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s ease;
+        }
+
+        #player-name:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        .btn-join {
+            background: #4CAF50;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-join:hover {
+            background: #43A047;
+            transform: translateY(-2px);
+        }
+
+        #buzzer {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: #f44336;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            margin: 2rem auto;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        #buzzer:not(:disabled):hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 48px rgba(0,0,0,0.3);
+        }
+
+        #buzzer:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: scale(0.95);
+        }
+
+        #status {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Jeopardy Buzzer</h1>
+        
+        <div id="join-area">
+            <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+            <button class="btn btn-join" onclick="joinGame()">Join Game</button>
+        </div>
+
+        <div id="game-area" style="display: none;">
+            <button id="buzzer" onclick="buzz()">BUZZ</button>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let playerName = '';
+        let canBuzz = true;
+
+        function joinGame() {
+            playerName = document.getElementById('player-name').value.trim();
+            if (playerName) {
+                socket.emit('player_join', { name: playerName });
+                document.getElementById('join-area').style.display = 'none';
+                document.getElementById('game-area').style.display = 'block';
+                
+                // Add entrance animation
+                document.getElementById('buzzer').classList.add('pulse');
+            }
+        }
+
+        function buzz() {
+            if (!canBuzz) return;
+            
+            const buzzer = document.getElementById('buzzer');
+            buzzer.disabled = true;
+            buzzer.classList.remove('pulse');
+            
+            // Add click animation
+            buzzer.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                buzzer.style.transform = 'scale(1)';
+            }, 100);
+
+            socket.emit('buzz', { name: playerName });
+            canBuzz = false;
+        }
+
+        socket.on('buzz_received', (data) => {
+            if (data.name === playerName) {
+                const status = document.getElementById('status');
+                status.textContent = `You buzzed in ${data.order}${getOrdinal(data.order)} place!`;
+                status.style.animation = 'none';
+                status.offsetHeight; // Trigger reflow
+                status.style.animation = 'fadeIn 0.3s ease-out';
+            }
+        });
+
+        socket.on('buzzers_reset', () => {
+            const buzzer = document.getElementById('buzzer');
+            buzzer.disabled = false;
+            buzzer.classList.add('pulse');
+            document.getElementById('status').textContent = '';
+            canBuzz = true;
+        });
+
+        function getOrdinal(n) {
+            const s = ["th", "st", "nd", "rd"];
+            const v = n % 100;
+            return (s[(v - 20) % 10] || s[v] || s[0]);
+        }
+
+        // Handle Enter key in name input
+        document.getElementById('player-name').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinGame();
+            }
+        });
+    </script>
+</body>
+</html>
